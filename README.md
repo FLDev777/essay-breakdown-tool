@@ -4,6 +4,8 @@ Turn an essay question into a structured, section-by-section **plan** — headin
 
 Static site: plain HTML, CSS and JavaScript. No build step, no package manager, no server, no database.
 
+**Live:** <https://fldev777.github.io/essay-breakdown-tool/> — bring your own API key (see below).
+
 ---
 
 ## Bring your own API key
@@ -95,4 +97,6 @@ There is no backend. Your inputs go from your browser directly to Google's Gemin
 
 ## Licence
 
-No licence has been chosen yet. Until one is added, default copyright applies: you may view the code, but not reuse it.
+[MIT](LICENSE) © 2026 FLDev777
+
+You are free to use, modify, and redistribute this software, including commercially, provided the copyright notice and licence text are retained.
