@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Essay Breakdown</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+  <script src="prompts.js"></script>
+
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .collapsible {
+      cursor: pointer;
+      position: relative;
+      transition: background-color 0.2s;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .collapsible:hover {
+      background-color: rgba(156, 175, 136, 0.1);
+    }
+    
+    .collapsible::after {
+      content: '\25B8';
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      transition: transform 0.2s ease-in-out;
+      color: #9CAF88;
+    }
+    
+    .collapsible.open::after {
+      transform: translateY(-50%) rotate(90deg);
+    }
+    
+    .content {
+      display: none;
+      padding: 1rem;
+      margin-left: 1rem;
+      border-left: 2px solid #9CAF88;
+    }
+    
+    #toc a {
+      transition: all 0.2s ease;
+      border-radius: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      margin: 0 -0.5rem;
+      display: block;
+      text-decoration: none;
+    }
+    
+    #toc a:hover {
+      background-color: rgba(156, 175, 136, 0.1);
+    }
+    
+    #toc ul {
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
+    }
+    
+    #toc ul ul {
+      padding-left: 1rem;
+    }
+    
+    .bullet-point {
+      margin: 8px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+    
+    .bullet-point:before {
+      content: "-";
+      position: absolute;
+      left: 0;
+      color: #9CAF88;
+      font-size: 1.2em;
+    }
+    
+    li {
+      position: relative;
+      padding-left: 15px;
+    }
+    
+    li:before {
+      content: "-";
+      position: absolute;
+      left: 0;
+      color: #9CAF88;
+      font-size: 1em;
+    }
+    
+    #download-btn, #expand-collapse-btn, #toggle-raw-response, #edit-toggle-btn {
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+      transition: all 0.3s ease;
+    }
+    
+    #download-btn:hover, #expand-collapse-btn:hover, #toggle-raw-response:hover, #edit-toggle-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15), 0 4px 6px rgba(0, 0, 0, 0.1);
+      background-color: #9CAF88; /* sage */
+    }
+    
+    #download-btn:active, #expand-collapse-btn:active, #toggle-raw-response:active, #edit-toggle-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    .completed {
+        text-decoration: line-through;
+        color: #8B8680; /* stone */
+    }
+    
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    #download-btn, #expand-collapse-btn {
+      animation: fadeInUp 0.5s ease-out 0.5s both;
+    }
+
+    .dud {
+      color: #0F0;
+    }
+    #matrix-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    #matrix-loader {
+        transition: opacity 0.5s ease-out;
+    }
+    #sidebar, main {
+        transition: opacity 0.5s ease-in;
+    }
+	
+	 /* ----- print styles ----- */
+@media print {
+  body { background: #fff; color: #000; }          /* white page, black text */
+  .collapsible { page-break-inside: avoid; }      /* keep heading with content */
+  #download-btn, #expand-collapse-btn,
+  #toggle-raw-response { display: none !important; } /* hide floating buttons */
+  .content { display: block !important; }         /* expand everything for paper */
+  .completed { text-decoration: none; color: #000; } /* remove strikethrough */
+}
+
+  </style>
+</head>
+<body class="bg-cream dark:bg-ink font-sans text-charcoal dark:text-ice">
+
+    <div id="matrix-loader" class="fixed top-0 left-0 w-full h-full bg-ink z-50">
+        <canvas id="matrix-canvas"></canvas>
+        <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center flex-col">
+            <h1 class="font-serif text-4xl text-green-400">Generating Essay Breakdown...</h1>
+            <p id="stream-progress" class="text-green-500/70 text-sm mt-3 font-mono"></p>
+        </div>
+    </div>
+
+    <main style="opacity: 0;">
+        <div class="p-4 sm:p-6 md:p-8">
+            <div id="breakdown-container" class="prose max-w-none">
+                <h1 class="font-serif text-4xl">Essay Breakdown</h1>
+            </div>
+            <div id="raw-response-container" class="mt-8 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg" style="display: none;">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-serif text-2xl">Raw API Response</h2>
+                    <button id="copy-raw-response" class="bg-sage hover:bg-terracotta text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 shadow-md">Copy All</button>
+                </div>
+                <textarea id="raw-response" class="w-full h-64 p-4 bg-white dark:bg-gray-800 rounded font-mono text-sm" readonly></textarea>
+            </div>
+            </div>
+        </div>
+        <!-- Depth tag legend -->
+        <div id="tag-legend" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 text-[11px] text-stone/70 dark:text-mist bg-white/70 dark:bg-ink/70 backdrop-blur-sm rounded-full px-4 py-1.5 shadow-sm border border-stone/10 dark:border-mist/10 text-center leading-relaxed whitespace-nowrap">
+          <span class="font-semibold text-stone dark:text-mist">Tag legend:</span>
+          <span class="ml-1"><span class="font-mono font-semibold">[D]</span> Descriptive</span>
+          <span class="ml-3"><span class="font-mono font-semibold">[A]</span> Analytical</span>
+          <span class="ml-3"><span class="font-mono font-semibold">[E]</span> Evaluative</span>
+          <span class="ml-3"><span class="font-mono font-semibold">[Why]</span> Section purpose</span>
+          <span class="ml-3"><span class="font-mono font-semibold">[Counter]</span> Opposing view</span>
+        </div>
+    </main>
+
+    <button id="download-btn" title="Download / Export" class="fixed left-4 bottom-4 text-white border-none rounded-full w-14 h-14 text-2xl leading-14 text-center cursor-pointer shadow-lg transition-all duration-300 z-50 flex items-center justify-center">
+      <i class="fas fa-download"></i>
+    </button>
+    <!-- Export popup -->
+    <button id="edit-toggle-btn" title="Enable editing" class="fixed left-4 bottom-[5rem] text-white border-none rounded-full w-14 h-14 text-xl leading-14 text-center cursor-pointer shadow-lg transition-all duration-300 z-50 flex items-center justify-center">
+      <i class="fas fa-pen"></i>
+    </button>
+    <div id="export-popup" class="fixed left-4 bottom-[9.5rem] z-50 hidden">
+      <div class="bg-white dark:bg-slate border border-stone/20 dark:border-mist/20 rounded-xl shadow-xl p-2 min-w-[180px] backdrop-blur-lg">
+        <button class="export-option w-full text-left px-3 py-2 text-sm text-charcoal dark:text-ice hover:bg-sage/10 dark:hover:bg-sage/5 rounded-lg transition-colors flex items-center gap-2" data-format="html">
+          <span>💾</span> Download HTML
+        </button>
+        <button class="export-option w-full text-left px-3 py-2 text-sm text-charcoal dark:text-ice hover:bg-sage/10 dark:hover:bg-sage/5 rounded-lg transition-colors flex items-center gap-2" data-format="markdown">
+          <span>📝</span> Copy Markdown
+        </button>
+        <button class="export-option w-full text-left px-3 py-2 text-sm text-charcoal dark:text-ice hover:bg-sage/10 dark:hover:bg-sage/5 rounded-lg transition-colors flex items-center gap-2" data-format="docx">
+          <span>📄</span> Download DOCX
+        </button>
+      </div>
+    </div>
+    <button id="expand-collapse-btn" title="Expand All" class="fixed right-4 bottom-4 text-white border-none rounded-full w-14 h-14 text-2xl leading-14 text-center cursor-pointer shadow-lg transition-all duration-300 z-50 flex items-center justify-center">
+      <i class="fas fa-plus"></i>
+    </button>
+    <button id="toggle-raw-response" title="Show Raw Response" class="fixed right-4 bottom-20 text-white border-none rounded-full w-14 h-14 text-2xl leading-14 text-center cursor-pointer shadow-lg transition-all duration-300 z-50 flex items-center justify-center">
+      <i class="fas fa-code"></i>
+    </button>
+
+    <script>
+        // Text scramble effect
+        class TextScramble {
+            constructor(el) {
+                this.el = el;
+                this.chars = '!<>-_\\/[]{}—=+*^?#________';
+                this.update = this.update.bind(this);
+            }
+            setText(newText) {
+                const oldText = this.el.innerText;
+                const length = Math.max(oldText.length, newText.length);
+                const promise = new Promise((resolve) => (this.resolve = resolve));
+                this.queue = [];
+                for (let i = 0; i < length; i++) {
+                    const from = oldText[i] || '';
+                    const to = newText[i] || '';
+                    const start = Math.floor(Math.random() * 10);
+                    const end = start + Math.floor(Math.random() * 10);
+                    this.queue.push({ from, to, start, end });
+                }
+                cancelAnimationFrame(this.frameRequest);
+                this.frame = 0;
+                this.update();
+                return promise;
+            }
+            update() {
+                let output = '';
+                let complete = 0;
+                for (let i = 0, n = this.queue.length; i < n; i++) {
+                    let { from, to, start, end, char } = this.queue[i];
+                    if (this.frame >= end) {
+                        complete++;
+                        output += to;
+                    } else if (this.frame >= start) {
+                        if (!char || Math.random() < 0.28) {
+                            char = this.randomChar();
+                            this.queue[i].char = char;
+                        }
+                        output += `<span class="dud">${char}</span>`;
+                    } else {
+                        output += from;
+                    }
+                }
+                this.el.innerHTML = output;
+                if (complete === this.queue.length) {
+                    this.resolve();
+                } else {
+                    this.frameRequest = requestAnimationFrame(this.update);
+                    this.frame++;
+                }
+            }
+            randomChar() {
+                return this.chars[Math.floor(Math.random() * this.chars.length)];
+            }
+        }
+
+        // Matrix animation
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+        const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const nums = '0123456789';
+
+        const alphabet = katakana + latin + nums;
+
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+
+        const rainDrops = [];
+
+        for (let x = 0; x < columns; x++) {
+            rainDrops[x] = 1;
+        }
+
+        const draw = () => {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#0F0'; // Green color
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    rainDrops[i] = 0;
+                }
+                rainDrops[i]++;
+            }
+        };
+
+        const matrixInterval = setInterval(draw, 30);
+    </script>
+    <script type="module">
+        import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+        const breakdownContainer = document.getElementById('breakdown-container');
+        const downloadBtn = document.getElementById('download-btn');
+        const expandCollapseBtn = document.getElementById('expand-collapse-btn');
+
+        breakdownContainer.addEventListener('click', (e) => {
+            if (e.target.tagName === 'LI' && !document.body.classList.contains('edit-mode')) {
+                e.target.classList.toggle('completed');
+            }
+        });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const stored = sessionStorage.getItem('breakdownData');
+        let essayQuestion, detailedInstructions, markingSheet, wordCount, model, essayStyle, headings, styleDescription, headingsParam;
+
+        if (stored) {
+            const data = JSON.parse(stored);
+            essayQuestion = data.essayQuestion;
+            detailedInstructions = data.detailedInstructions;
+            markingSheet = data.markingSheet || '';
+            wordCount = data.wordCount;
+            model = data.model || 'gemini-3.8-flash';
+            essayStyle = data.essayStyle || 'Standard Essay';
+            styleDescription = data.styleDescription || '';
+            try {
+                headings = JSON.parse(data.headings || '[]');
+            } catch (e) {
+                headings = ['Abstract', 'Introduction', 'Main Body', 'Conclusion', 'References'];
+            }
+        } else {
+            // Fallback: read from URL params (legacy/backward compat)
+            essayQuestion = urlParams.get('essayQuestion');
+            detailedInstructions = urlParams.get('detailedInstructions');
+            markingSheet = urlParams.get('markingSheet') || '';
+            wordCount = urlParams.get('wordCount');
+            model = urlParams.get('model') || 'gemini-3.8-flash';
+            essayStyle = urlParams.get('essayStyle') || 'Standard Essay';
+            headingsParam = urlParams.get('headings');
+            styleDescription = urlParams.get('styleDescription') || '';
+            headings = ['Abstract', 'Introduction', 'Main Body', 'Conclusion', 'References'];
+            if (headingsParam) {
+                try {
+                    headings = JSON.parse(decodeURIComponent(headingsParam));
+                } catch (e) {
+                    console.error('Error parsing headings parameter:', e);
+                }
+            }
+        }
+
+        const apiKey = localStorage.getItem('gemini_key');
+
+        if (!apiKey) {
+    breakdownContainer.innerHTML = '<h1>Error</h1><p>No API key found. Please go back to <strong>index.html</strong> and enter your Gemini API key.</p>';
+} else if (!essayQuestion || !detailedInstructions) {
+    breakdownContainer.innerHTML = '<h1>Error</h1><p>No essay question found. Please go back and submit one.</p>';
+} else {
+    run();
+}
+
+        // Export button listeners
+
+        // ---- Global keyboard shortcuts ----
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+D → Download
+            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                e.preventDefault();
+                downloadBtn.click();
+            }
+            // Escape → Collapse all sections
+            if (e.key === 'Escape') {
+                const collapsibles = document.querySelectorAll('.collapsible.open');
+                collapsibles.forEach(h => {
+                    h.classList.remove('open');
+                    h.setAttribute('aria-expanded', 'false');
+                    const c = h.nextElementSibling;
+                    if (c && c.classList.contains('content')) c.style.display = 'none';
+                });
+                updateExpandCollapseButton();
+            }
+        });
+
+        // ---- Edit mode toggle ----
+        const editToggleBtn = document.getElementById('edit-toggle-btn');
+        let editModeEnabled = false;
+
+        function setEditMode(enabled) {
+            editModeEnabled = enabled;
+            const elements = document.querySelectorAll('.collapsible, .content li');
+            elements.forEach(el => {
+                el.contentEditable = enabled;
+            });
+            // Update button appearance
+            if (enabled) {
+                editToggleBtn.innerHTML = '<i class="fas fa-lock"></i>';
+                editToggleBtn.title = 'Disable editing';
+                editToggleBtn.style.backgroundColor = '#D4A574'; /* terracotta */
+            } else {
+                editToggleBtn.innerHTML = '<i class="fas fa-pen"></i>';
+                editToggleBtn.title = 'Enable editing';
+                editToggleBtn.style.backgroundColor = '';
+            }
+            // Toggle a class to let other handlers know
+            document.body.classList.toggle('edit-mode', enabled);
+        }
+
+        editToggleBtn.addEventListener('click', () => {
+            setEditMode(!editModeEnabled);
+        });
+
+        // When exiting edit mode on blur, ensure contentEditable stays synced with toggle
+        document.addEventListener('focusout', (e) => {
+            if (!editModeEnabled && e.target.contentEditable === 'true') {
+                e.target.contentEditable = false;
+            }
+        });
+
+        function updateExpandCollapseButton() {
+            const collapsibles = document.querySelectorAll('.collapsible');
+            const isAnyOpen = Array.from(collapsibles).some(c => c.classList.contains('open'));
+            if (isAnyOpen) {
+                expandCollapseBtn.innerHTML = '<i class="fas fa-minus"></i>';
+                expandCollapseBtn.title = 'Collapse All';
+            } else {
+                expandCollapseBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                expandCollapseBtn.title = 'Expand All';
+            }
+        }
+
+        function updateRawResponseButton() {
+            const rawResponseContainer = document.getElementById('raw-response-container');
+            const isVisible = rawResponseContainer.style.display !== 'none';
+            const rawResponseBtn = document.getElementById('toggle-raw-response');
+            
+            if (isVisible) {
+                rawResponseBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                rawResponseBtn.title = 'Hide Raw Response';
+            } else {
+                rawResponseBtn.innerHTML = '<i class="fas fa-code"></i>';
+                rawResponseBtn.title = 'Show Raw Response';
+            }
+        }
+
+        expandCollapseBtn.addEventListener('click', () => {
+            const collapsibles = document.querySelectorAll('.collapsible');
+            const isAnyOpen = Array.from(collapsibles).some(c => c.classList.contains('open'));
+
+            if (isAnyOpen) {
+                collapsibles.forEach(header => {
+                    header.classList.remove('open');
+                    const content = header.nextElementSibling;
+                    if (content && content.classList.contains('content')) {
+                        content.style.display = 'none';
+                    }
+                });
+            } else {
+                collapsibles.forEach(header => {
+                    header.classList.add('open');
+                    const content = header.nextElementSibling;
+                    if (content && content.classList.contains('content')) {
+                        content.style.display = 'block';
+                    }
+                });
+            }
+            updateExpandCollapseButton();
+        });
+
+        document.getElementById('toggle-raw-response').addEventListener('click', () => {
+            const rawResponseContainer = document.getElementById('raw-response-container');
+            const isVisible = rawResponseContainer.style.display !== 'none';
+            
+            if (isVisible) {
+                rawResponseContainer.style.display = 'none';
+            } else {
+                rawResponseContainer.style.display = 'block';
+            }
+            updateRawResponseButton();
+        });
+
+        document.getElementById('copy-raw-response').addEventListener('click', () => {
+            const rawResponseTextarea = document.getElementById('raw-response');
+            rawResponseTextarea.select();
+            document.execCommand('copy');
+            const copyButton = document.getElementById('copy-raw-response');
+            copyButton.textContent = 'Copied!';
+            setTimeout(() => {
+                copyButton.textContent = 'Copy All';
+            }, 2000);
+        });
+
+        async function run() {
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const modelName = model;
+            
+            const generationConfig = {
+                temperature: 0.9,
+                maxOutputTokens: 8192,
+            };
+
+            const safetySettings = [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            ];
+
+            const modelConfig = { 
+                model: modelName,
+                generationConfig,
+                safetySettings
+            };
+
+            const generativeModel = genAI.getGenerativeModel(modelConfig);
+
+            const promptContent = buildMarkdownPrompt({
+                essayQuestion,
+                detailedInstructions,
+                markingSheet,
+                wordCount,
+                essayStyle,
+                headings,
+                styleDescription
+            });
+
+            function getErrorMessage(error) {
+                const msg = error.message || String(error);
+                // API key issues
+                if (msg.includes('API_KEY_INVALID') || msg.includes('API key') || msg.includes('not valid') || msg.includes('unauthorized') || msg.includes('403') || msg.includes('permission'))
+                    return { title: 'Invalid API Key', detail: 'Your Gemini API key appears to be invalid. Close this tab, go back to the main page, and re-enter your API key.', type: 'api_key' };
+                // Rate limiting
+                if (msg.includes('RATE_LIMIT') || msg.includes('429') || msg.includes('Too Many Requests') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED'))
+                    return { title: 'Rate Limit Reached', detail: 'You have exceeded the API rate limit. Wait a moment, then try again. If this persists, check your Gemini API billing tier.', type: 'rate_limit' };
+                // Model overloaded (HTTP 503 / high demand) — temporary, server-side
+                if (msg.includes('503') || msg.includes('high demand') || msg.includes('currently experiencing') || msg.includes('overloaded'))
+                    return { title: 'Model Busy', detail: `The ${modelName} model is temporarily overloaded at Google's end (HTTP 503). The tool retried automatically. Wait about a minute and generate again — or switch the dropdown to Basic to continue right now.`, type: 'busy' };
+                // Content blocked by safety filters
+                if (msg.includes('SAFETY') || msg.includes('blocked') || msg.includes('finish_reason') || msg.includes('block_reason') || msg.includes('PROHIBITED_CONTENT') || msg.includes('FINISH_REASON_SAFETY'))
+                    return { title: 'Content Blocked', detail: 'Gemini blocked the response due to its safety filters. Try rephrasing your essay question or instructions to avoid triggering content restrictions.', type: 'blocked' };
+                // Network / fetch errors
+                if (msg.includes('fetch') || msg.includes('network') || msg.includes('NetworkError') || msg.includes('Failed to fetch') || msg.includes('abort') || msg.includes('ERR_INTERNET_DISCONNECTED') || msg.includes('TypeError'))
+                    return { title: 'Network Error', detail: 'Could not reach the Gemini API. Check your internet connection and try again.', type: 'network' };
+                // SSE stream ended without a clean terminator (Google's known flaky final chunk)
+                if (msg.includes('Failed to parse stream'))
+                    return { title: 'Stream Interrupted', detail: 'The response stream was cut off before completing (this can happen with long generations or network interference). The tool automatically retried — if you still see this, try again or switch to the Basic model.', type: 'stream' };
+                // Default
+                return { title: 'Generation Error', detail: `Something went wrong while generating the breakdown. ${msg}`, type: 'unknown' };
+            }
+
+            // Retry helper for transient HTTP 503 "model overloaded / high demand" responses.
+            // Google's error text says spikes are temporary, so a short backoff usually succeeds.
+            async function callWithRetry(modelCall, maxAttempts = 3) {
+                for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                    try {
+                        return await modelCall();
+                    } catch (err) {
+                        const msg = (err && err.message) || String(err);
+                        const overloaded = msg.includes('503') || msg.includes('high demand') || msg.includes('currently experiencing') || msg.includes('overloaded');
+                        if (!overloaded || attempt === maxAttempts) throw err;
+                        const delay = attempt * 1500;
+                        console.warn(`Gemini overloaded (503) — retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+                        await new Promise(res => setTimeout(res, delay));
+                    }
+                }
+            }
+
+            try {
+                const result = await callWithRetry(() => generativeModel.generateContentStream({contents: [{ role: "user", parts: [{ text: promptContent }] }]}));
+
+                let text = '';
+                let rawResponse = '';
+                let streamError = null;
+                
+                try {
+                    for await (const chunk of result.stream) {
+                        try {
+                            const chunkText = chunk.text();
+                            if(chunkText) {
+                                text += chunkText;
+                            }
+                            rawResponse += chunkText || '';
+
+                            // Update stream progress indicator
+                            const wordCount = text.split(/\s+/).filter(Boolean).length;
+                            const progEl = document.getElementById('stream-progress');
+                            if (progEl) {
+                                // Extract the latest H1 heading from text for context
+                                const headingMatch = text.match(/#\s+([^\n]+)/g);
+                                const latestHeading = headingMatch ? headingMatch[headingMatch.length - 1].replace('# ', '') : '';
+                                progEl.textContent = `≈ ${wordCount} words received` + (latestHeading ? ` · ${latestHeading}` : '');
+                            }
+                        } catch (chunkErr) {
+                            streamError = chunkErr;
+                            console.warn('Partial stream chunk error:', chunkErr);
+                        }
+                    }
+                } catch (streamErr) {
+                    // The SDK throws "Failed to parse stream" when the API returns HTTP 200
+                    // but the SSE body ends without a clean event terminator (network
+                    // truncation, security software, or a flaky final stream chunk).
+                    console.warn('Stream-level error:', streamErr);
+                    if (text.trim()) {
+                        // Partial content is usable — render it with a truncation warning.
+                        streamError = streamErr;
+                    } else {
+                        // Nothing arrived via the stream — retry once using the
+                        // non-streaming endpoint, which does not depend on SSE framing.
+                        const retryResult = await callWithRetry(() => generativeModel.generateContent({contents: [{ role: "user", parts: [{ text: promptContent }] }]}), 2);
+                        const retryText = retryResult.response.text();
+                        if (retryText) {
+                            text = retryText;
+                            rawResponse = retryText;
+                        } else {
+                            throw streamErr;
+                        }
+                    }
+                }
+
+                document.getElementById('raw-response').value = rawResponse;
+
+                // If stream produced no text but had no errors, it may be empty
+                if (!text && !streamError) {
+                    const err = getErrorMessage(new Error('The API returned an empty response.'));
+                    breakdownContainer.innerHTML = `<h1 class="font-serif text-2xl text-terracotta">${err.title}</h1><p class="mt-2">${err.detail}</p>`;
+                    return;
+                }
+
+                // If partial stream had errors, show a warning banner but still render partial content
+                if (streamError) {
+                    const warning = document.createElement('div');
+                    warning.className = 'bg-yellow-900/40 border border-yellow-600/50 text-yellow-200 p-3 rounded-lg mb-4 text-sm';
+                    warning.textContent = '⚠️ The breakdown may be incomplete — an error occurred during generation. You can try again with the same inputs.';
+                    breakdownContainer.prepend(warning);
+                }
+
+                const processedText = preprocessModelText(text);
+                
+                const tree = parseMarkdown(processedText);
+                
+                breakdownContainer.innerHTML = '';
+                
+                renderTree(tree, breakdownContainer);
+                setupDownloadButton();
+                saveToHistory(breakdownContainer.innerHTML);
+
+                const matrixLoader = document.getElementById('matrix-loader');
+                const main = document.querySelector('main');
+
+                matrixLoader.style.opacity = '0';
+                setTimeout(() => {
+                    matrixLoader.style.display = 'none';
+                    clearInterval(matrixInterval);
+                }, 500);
+
+                main.style.opacity = '1';
+
+                setTimeout(() => {
+                    const scrambleElements = document.querySelectorAll('#breakdown-container h1, #breakdown-container h2, #breakdown-container h3, #breakdown-container p, #breakdown-container li');
+                    const promises = [];
+                    scrambleElements.forEach(el => {
+                        const fx = new TextScramble(el);
+                        promises.push(fx.setText(el.textContent));
+                    });
+                    Promise.all(promises).then(() => {
+                        // All scrambling is complete
+                    });
+                }, 500);
+
+            } catch (error) {
+                console.error('Error generating content:', error);
+                const errInfo = getErrorMessage(error);
+                breakdownContainer.innerHTML = `<h1 class="font-serif text-2xl text-terracotta">${errInfo.title}</h1><p class="mt-2">${errInfo.detail}</p>`;
+                document.getElementById('raw-response').value = `Error: ${error.message}\n\nPrompt that was sent:\n\n${promptContent}`;
+
+                // Reveal the page so the error card is visible (the matrix overlay
+                // otherwise keeps spinning full-screen and looks like a stall).
+                const matrixLoader = document.getElementById('matrix-loader');
+                const main = document.querySelector('main');
+                if (matrixLoader) {
+                    matrixLoader.style.opacity = '0';
+                    setTimeout(() => {
+                        matrixLoader.style.display = 'none';
+                        clearInterval(matrixInterval);
+                    }, 500);
+                }
+                if (main) main.style.opacity = '1';
+            }
+        }
+
+        function saveToHistory(html) {
+            const MAX_HISTORY = 20;
+            const key = 'breakdown_history';
+            let history = [];
+            try {
+                const stored = localStorage.getItem(key);
+                if (stored) history = JSON.parse(stored);
+                if (!Array.isArray(history)) history = [];
+            } catch (e) { history = []; }
+
+            const entry = {
+                id: 'bd-' + Date.now(),
+                question: essayQuestion,
+                style: essayStyle,
+                styleDescription: styleDescription,
+                headings: headings,
+                date: new Date().toISOString(),
+                html: html
+            };
+
+            // Insert at front, cap at MAX_HISTORY, remove duplicates by question+style
+            history = history.filter(e => !(e.question === essayQuestion && e.style === essayStyle));
+            history.unshift(entry);
+            if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+
+            try {
+                localStorage.setItem(key, JSON.stringify(history));
+            } catch (e) {
+                console.warn('Could not save to history (storage full):', e);
+            }
+        }
+
+        /**
+         * Temporarily expand all collapsed sections, run fn(restore), then restore.
+         * This ensures exports capture hidden content.
+         */
+        function withAllContentExpanded(fn) {
+            const contents = document.querySelectorAll('.content');
+            const states = [];
+            const buttons = document.querySelectorAll('.content button');
+            const btnStates = [];
+            contents.forEach(el => {
+                states.push(el.style.display);
+                el.style.display = 'block';
+            });
+            buttons.forEach(btn => {
+                btnStates.push(btn.style.display);
+                btn.style.display = 'none';
+            });
+            try { fn(); }
+            finally {
+                contents.forEach((el, i) => {
+                    el.style.display = states[i];
+                });
+                buttons.forEach((btn, i) => {
+                    btn.style.display = btnStates[i];
+                });
+            }
+        }
+
+        /**
+         * Get clean content HTML with all UI buttons and edit controls stripped out.
+         */
+        function getCleanContentHtml() {
+            let html;
+            withAllContentExpanded(() => {
+                html = document.getElementById('breakdown-container').innerHTML;
+            });
+            // Strip all button elements (add-bullet, edit icons, etc.)
+            html = html.replace(/<button[\s\S]*?<\/button>/gi, '');
+            // Strip any remaining standalone button tags
+            html = html.replace(/<button[^>]*\/?>/gi, '');
+            // Remove aria-* and tabindex attributes that aren't needed in exports
+            html = html.replace(/\s(?:aria|tabindex)=["'][^"']*["']/gi, '');
+            return html;
+        }
+
+        function exportAsMarkdown() {
+            const container = document.getElementById('breakdown-container');
+            const headers = container.querySelectorAll('.collapsible');
+            let md = '# ' + essayQuestion + '\n\n';
+            md += '_Essay style: ' + essayStyle + '_  \n_Generated: ' + new Date().toLocaleString() + '_\n\n---\n\n';
+            // Tag legend
+            md += '_Tag legend: [D] Descriptive · [A] Analytical · [E] Evaluative · [Why] Section purpose · [Counter] Opposing view_\n\n---\n\n';
+            headers.forEach(h => {
+                const level = Math.min(6, parseInt(h.tagName.substring(1), 10) || 1);
+                md += '#'.repeat(level) + ' ' + h.textContent.trim() + '\n\n';
+                const content = h.nextElementSibling;
+                if (content && content.classList.contains('content')) {
+                    collectSectionContent(content).forEach(item => {
+                        if (item.kind === 'li') md += '- ' + item.text + '\n';
+                        else md += item.text + '\n\n';
+                    });
+                }
+            });
+            navigator.clipboard.writeText(md).then(() => {
+                const popup = document.getElementById('export-popup');
+                const origTitle = downloadBtn.title;
+                downloadBtn.title = '✅ Copied!';
+                setTimeout(() => downloadBtn.title = origTitle, 2000);
+            }).catch(() => {
+                // Fallback: create a textarea and select
+                const ta = document.createElement('textarea');
+                ta.value = md;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            });
+        }
+
+        function exportAsDocx() {
+            const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+
+            // Build first paragraph (title + metadata)
+            const children = [
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: 'Essay Breakdown', bold: true, size: 32, font: 'Arial' }),
+                    ],
+                    spacing: { after: 200 },
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: `Question: ${essayQuestion}`, size: 20, font: 'Arial', color: '666666' }),
+                    ],
+                    spacing: { after: 100 },
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: `Style: ${essayStyle} · Word count: ${wordCount} · Generated: ${new Date().toLocaleString()}`, size: 20, font: 'Arial', color: '666666' }),
+                    ],
+                    spacing: { after: 400 },
+                }),
+                // Tag legend
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: 'Tag legend: [D] Descriptive [A] Analytical [E] Evaluative [Why] Section Purpose [Counter] Opposing View', size: 18, font: 'Arial', color: '0A0A0A', italics: true }),
+                    ],
+                    spacing: { after: 300 },
+                }),
+            ];
+
+            // Build content from DOM
+            withAllContentExpanded(() => {
+                const container = document.getElementById('breakdown-container');
+                const headers = container.querySelectorAll('.collapsible');
+
+                headers.forEach(h => {
+                    const level = parseInt(h.tagName.substring(1), 10);
+                    const headingMap = {
+                        1: HeadingLevel.HEADING_1,
+                        2: HeadingLevel.HEADING_2,
+                        3: HeadingLevel.HEADING_3,
+                    };
+
+                    children.push(new Paragraph({
+                        text: h.textContent,
+                        heading: headingMap[level] || HeadingLevel.HEADING_3,
+                        spacing: { before: level === 1 ? 400 : 200, after: 100 },
+                    }));
+
+                    const content = h.nextElementSibling;
+                    if (content && content.classList.contains('content')) {
+                        collectSectionContent(content).forEach(item => {
+                            children.push(new Paragraph({
+                                children: [new TextRun({ text: item.text, size: 24, font: 'Arial' })],
+                                ...(item.kind === 'li' ? { bullet: { level: 0 } } : {}),
+                                spacing: { after: 40 },
+                            }));
+                        });
+                    }
+                });
+            });
+
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: children,
+                }],
+            });
+
+            Packer.toBlob(doc).then(blob => {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'essay-breakdown.docx';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            }).catch(e => {
+                alert('Could not generate DOCX. ' + e.message);
+            });
+        }
+
+        /**
+         * Normalise the model's raw output before parsing:
+         *  - "H2: Title" prefixes become hashes, and a space is forced after any hash run
+         *  - a line whose first token is a depth tag ([D]/[A]/[E]/[Why:]/[Counter:]) is ALWAYS a
+         *    bullet, whatever decoration the model wrapped it in (#, *, -, >). A tag marks a
+         *    bullet's depth level, never a section heading; a mangled tag line is what used to
+         *    render as an <h2> and then vanish from the Markdown and DOCX exports.
+         *  - tags the model ran onto one line are split back onto their own lines
+         */
+        function preprocessModelText(text) {
+            let p = text;
+            // 1. "H2: Title" -> "## Title"
+            p = p.replace(/^H([1-6]):[ \t]*(.*?)$/gm, (m, n, t) => '#'.repeat(Number(n)) + ' ' + t);
+            // 2. force exactly one space after a hash run ("##Title" -> "## Title")
+            p = p.replace(/^[ \t]*(#{1,6})[ \t]*(?=\S)/gm, '$1 ');
+            // 3. the model sometimes bullet-points a heading ("* ## Title") - drop that marker
+            p = p.replace(/^[ \t]*[*+-][ \t]+(?=#{1,6}[ \t])/gm, '');
+            // 4. split tags the model ran together on one line ("... risk. [A] Analyse ...")
+            p = p.replace(/([^\s#*+>-])\s+(?=\[(?:D|A|E|Why:?|Counter:?|C)\])/g, '$1\n');
+            // 5. every tag line becomes exactly one bullet, with any decoration stripped
+            p = p.replace(/^[ \t]*(?:[#>*+-]+[ \t]*)*\[(D|A|E|Why:?|Counter:?|C)\][ \t]*/gm,
+                (m, tag) => '* [' + (tag === 'C' ? 'Counter:' : tag) + '] ');
+            // 6. normalise bullet markers so every list item starts with "* "
+            p = p.replace(/^[ \t]*[*+-][ \t]+(?=\S)/gm, '* ');
+            return p;
+        }
+
+        /**
+         * Collect a section's OWN content in document order as { kind, text } items.
+         * Nested sub-sections are skipped (they are emitted as sections in their own right) and
+         * UI buttons are ignored - but nothing else may be dropped. Harvesting only <li>/<p> is
+         * what silently truncated the Markdown and DOCX exports.
+         */
+        function collectSectionContent(contentEl) {
+            const items = [];
+            const visit = (el) => {
+                for (const child of el.children) {
+                    if (child.classList.contains('collapsible') || child.classList.contains('content')) continue;
+                    if (child.tagName === 'BUTTON') continue;
+                    const text = child.textContent.trim();
+                    if (child.tagName === 'UL' || child.tagName === 'OL') {
+                        for (const li of child.children) {
+                            if (li.tagName !== 'LI') continue;
+                            const t = li.textContent.trim();
+                            if (t && t !== '+') items.push({ kind: 'li', text: t });
+                        }
+                    } else if (child.tagName === 'P') {
+                        if (text && text !== '+') items.push({ kind: 'p', text: text });
+                    } else if (/^H[1-6]$/.test(child.tagName)) {
+                        if (text) items.push({ kind: 'h', text: text, level: Number(child.tagName[1]) });
+                    } else if (child.children.length) {
+                        visit(child);            // wrapper element - descend, never drop
+                    } else if (text && text !== '+') {
+                        items.push({ kind: 'p', text: text });
+                    }
+                }
+            };
+            visit(contentEl);
+            return items;
+        }
+
+        function parseMarkdown(markdown) {
+            const lines = markdown.split('\n');
+            const root = { level: 0, children: [], content: '' };
+            const stack = [root];
+            const validH1Titles = headings.map(h => h.split(' (')[0]);
+
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) continue;
+
+                const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
+                if (headingMatch) {
+                    const level = headingMatch[1].length;
+                    const title = headingMatch[2];
+                    
+                    if (level === 1) {
+                        const isH1Valid = validH1Titles.some(h1 => 
+                            title.toLowerCase().includes(h1.toLowerCase().split(' ')[0])
+                        );
+                        
+                        if (!isH1Valid) {
+                            continue;
+                        }
+                    }
+
+                    const newNode = { 
+                        level, 
+                        title, 
+                        children: [], 
+                        content: '' 
+                    };
+
+                    while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+                        stack.pop();
+                    }
+                    
+                    stack[stack.length - 1].children.push(newNode);
+                    stack.push(newNode);
+                } else {
+                    if (stack.length > 1) {
+                        const currentHeading = stack[stack.length - 1];
+                        currentHeading.content += line + '\n';
+                    }
+                }
+            }
+            
+            return root;
+        }
+
+        function renderTree(tree, container) {
+            const converter = new showdown.Converter();
+            tree.children.forEach((node, i) => {
+                const headerId = `heading-${node.level}-${i}`;
+
+                const header = document.createElement(`h${node.level}`);
+                header.textContent = node.title.replace(/^#+\s*/, '');
+                header.id = headerId;
+                header.className = 'collapsible';
+				header.setAttribute('aria-expanded', 'false'); // tell screen-reader it's closed
+				header.setAttribute('tabindex', '0'); // let keyboard users Tab to it
+                container.appendChild(header);
+
+                const contentWrapper = document.createElement('div');
+                contentWrapper.className = 'content';
+                contentWrapper.innerHTML = converter.makeHtml(node.content);
+                container.appendChild(contentWrapper);
+
+                header.addEventListener('click', () => {
+				if (document.body.classList.contains('edit-mode')) return;
+				header.classList.toggle('open'); // 1. toggle first
+				const isOpen = header.classList.contains('open'); // 2. now read the new state
+				header.setAttribute('aria-expanded', isOpen);   // 3. update ARIA
+				contentWrapper.style.display = isOpen ? 'block' : 'none';
+				updateExpandCollapseButton();
+				});
+				
+                header.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+                });
+
+                // --- inline editing via global edit-toggle ---
+                header.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); header.blur(); }
+                    if (e.key === 'Escape') header.blur();
+                });
+
+                // Make list items editable (handled by global edit-toggle)
+                const lis = contentWrapper.querySelectorAll('li');
+                lis.forEach(li => {
+                    li.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); li.blur(); }
+                        if (e.key === 'Escape') li.blur();
+                    });
+                });
+
+                // --- Add bullet button ---
+                const addBtn = document.createElement('button');
+                addBtn.innerHTML = '+';
+                addBtn.title = 'Add bullet point';
+                addBtn.className = 'text-sage hover:text-terracotta text-lg leading-none p-1 opacity-0 hover:opacity-100 transition-opacity mt-1';
+                addBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const list = contentWrapper.querySelector('ul');
+                    const newLi = document.createElement('li');
+                    newLi.textContent = 'New point...';
+                    if (editModeEnabled) newLi.contentEditable = true;
+                    newLi.addEventListener('blur', () => { newLi.contentEditable = false; });
+                    newLi.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); newLi.blur(); }
+                        if (e.key === 'Escape') newLi.blur();
+                    });
+                    if (list) {
+                        list.appendChild(newLi);
+                    } else {
+                        const newUl = document.createElement('ul');
+                        newUl.appendChild(newLi);
+                        contentWrapper.appendChild(newUl);
+                    }
+                    newLi.focus();
+                    const range = document.createRange();
+                    range.selectNodeContents(newLi);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                });
+                contentWrapper.appendChild(addBtn);
+
+                if (node.children && node.children.length > 0) {
+                    renderTree(node, contentWrapper);
+                }
+            });
+        }
+
+        function setupDownloadButton() {
+            const popup = document.getElementById('export-popup');
+
+            // Toggle popup on download button click
+            downloadBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                popup.classList.toggle('hidden');
+            });
+
+            // Close popup when clicking anywhere else
+            document.addEventListener('click', (e) => {
+                if (!popup.classList.contains('hidden') && !popup.contains(e.target) && e.target !== downloadBtn && !downloadBtn.contains(e.target)) {
+                    popup.classList.add('hidden');
+                }
+            });
+
+            // Handle export option clicks
+            document.querySelectorAll('.export-option').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    popup.classList.add('hidden');
+                    const format = btn.getAttribute('data-format');
+                    if (format === 'html') downloadHtml();
+                    else if (format === 'markdown') exportAsMarkdown();
+                    else if (format === 'docx') exportAsDocx();
+                });
+            });
+        }
+
+        function downloadHtml() {
+            const filename = 'essay-breakdown.html';
+            const breakdownContent = document.getElementById('breakdown-container').innerHTML;
+
+                const headContent = `
+                    <meta charset="UTF-8"/>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+                    <title>Essay Breakdown</title>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <script>
+                        tailwind.config = {
+                            darkMode: 'class',
+                            theme: {
+                                extend: {
+                                    fontFamily: { 'serif': ['Playfair Display','serif'], 'sans': ['Inter','ui-sans-serif','system-ui','Segoe UI','Roboto','Arial'] },
+                                    colors: { 'sage': '#9CAF88', 'terracotta': '#D4A574', 'cream': '#F5F1E8', 'charcoal': '#2D2D2D', 'stone': '#8B8680', 'ink': '#0B1220', 'midnight': '#0F1B2D', 'slate': '#1C2840', 'mist': '#AAB7CF', 'ice': '#E6ECF7' }
+                                }
+                            }
+                        }
+                    <\/script>
+                    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+                    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+                    <style>
+                        body { font-family: 'Inter', sans-serif; }
+                        .collapsible { cursor: pointer; position: relative; transition: background-color 0.2s; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; }
+                        .collapsible:hover { background-color: rgba(156, 175, 136, 0.1); }
+                        .collapsible::after { content: '\u25B8'; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); transition: transform 0.2s ease-in-out; color: #9CAF88; }
+                        .collapsible.open::after { transform: translateY(-50%) rotate(90deg); }
+                        .content { display: none; padding: 1rem; margin-left: 1rem; border-left: 2px solid #9CAF88; }
+                        .completed { text-decoration: line-through; color: #8B8680; }
+                    </style>
+                `;
+
+                const bodyContent = `
+                    <main>
+                        <div class="p-4 sm:p-6 md:p-8">
+                            <div id="breakdown-container" class="prose max-w-none">${breakdownContent}</div>
+                        </div>
+                    </main>
+                    <button id="expand-collapse-btn" title="Expand All" class="fixed right-4 bottom-4 text-white border-none rounded-full w-14 h-14 text-2xl leading-14 text-center cursor-pointer shadow-lg transition-all duration-300 z-50 flex items-center justify-center">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                `;
+
+                const scriptContent = `
+                    <script>
+                        document.addEventListener('DOMContentLoaded', () => {
+                            document.getElementById('breakdown-container').addEventListener('click', (e) => {
+                                if (e.target.tagName === 'LI') {
+                                    e.target.classList.toggle('completed');
+                                }
+                            });
+                            
+                            const collapsibles = document.querySelectorAll('.collapsible');
+                            collapsibles.forEach(header => {
+                                header.addEventListener('click', () => {
+                                    header.classList.toggle('open');
+                                    const content = header.nextElementSibling;
+                                    if (content && content.classList.contains('content')) {
+                                        content.style.display = header.classList.contains('open') ? 'block' : 'none';
+                                    }
+                                    updateExpandCollapseButton();
+                                });
+                            });
+
+                            function updateExpandCollapseButton() {
+                                const expandCollapseBtn = document.getElementById('expand-collapse-btn');
+                                const collapsibles = document.querySelectorAll('.collapsible');
+                                const isAnyOpen = Array.from(collapsibles).some(c => c.classList.contains('open'));
+                                if (isAnyOpen) {
+                                    expandCollapseBtn.innerHTML = '<i class="fas fa-minus"></i>';
+                                    expandCollapseBtn.title = 'Collapse All';
+                                } else {
+                                    expandCollapseBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                                    expandCollapseBtn.title = 'Expand All';
+                                }
+                            }
+
+                            const expandCollapseBtn = document.getElementById('expand-collapse-btn');
+                            if (expandCollapseBtn) {
+                                expandCollapseBtn.addEventListener('click', () => {
+                                    const collapsibles = document.querySelectorAll('.collapsible');
+                                    const isAnyOpen = Array.from(collapsibles).some(c => c.classList.contains('open'));
+
+                                    if (isAnyOpen) {
+                                        collapsibles.forEach(header => {
+                                            header.classList.remove('open');
+                                            const content = header.nextElementSibling;
+                                            if (content && content.classList.contains('content')) {
+                                                content.style.display = 'none';
+                                            }
+                                        });
+                                    } else {
+                                        collapsibles.forEach(header => {
+                                            header.classList.add('open');
+                                            const content = header.nextElementSibling;
+                                            if (content && content.classList.contains('content')) {
+                                                content.style.display = 'block';
+                                            }
+                                        });
+                                    }
+                                    updateExpandCollapseButton();
+                                });
+                            }
+                        });
+                    <\/script>
+                `;
+
+                const html = `
+                    <!DOCTYPE html>
+                    <html lang="en" class="${document.documentElement.className}">
+                    <head>${headContent}</head>
+                    <body class="bg-cream dark:bg-ink font-sans text-charcoal dark:text-ice">
+                        ${bodyContent}
+                        ${scriptContent}
+                    </body>
+                    </html>`;
+
+                const blob = new Blob([html.trim()], { type: 'text/html' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(a.href);
+        }
+    </script>
+</body>
+</html>

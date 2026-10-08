@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Essay Question Breakdown</title>
+  
+  <script>
+  /* ---- API-key handler ---- */
+  (() => {
+    const STORAGE_KEY = 'gemini_key';
+    let key = localStorage.getItem(STORAGE_KEY);
+
+    if (!key) {                                       // first visit
+      key = prompt('Enter your Gemini API key (stored locally in this browser):');
+      if (!key || key.trim().length < 10) {           // basic sanity
+        alert('A valid key is required to use the tool.');
+        // optionally disable the form here
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, key.trim());
+    }
+
+    /* expose it globally so breakdown.html can read it */
+    window.API_CONFIG = { apiKey: key };
+  })();
+</script>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    /* Worked-example text pre-filled in the form fields: visible but muted, and not selectable.
+       Focusing a field clears it, so the user always types into an empty box. */
+    .field-sample {
+      color: rgba(139, 134, 128, 0.55); /* stone */
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html.dark .field-sample {
+      color: rgba(170, 183, 207, 0.5); /* mist */
+    }
+  </style>
+</head>
+<body class="bg-cream dark:bg-ink font-sans text-charcoal dark:text-ice">
+
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full lg:w-[95%] mx-auto">
+      <div class="text-center mb-4">
+        <h1 class="font-serif text-4xl sm:text-5xl font-bold dark:text-ice">Essay Breakdown</h1>
+        <div class="flex justify-between items-center mt-2">
+            <p class="text-lg text-stone dark:text-mist text-left">Enter your essay details below to generate a structured plan.</p>
+            <div class="flex items-center gap-2">
+                <div class="relative">
+                    <select id="model" name="model" class="w-full appearance-none bg-cream/50 dark:bg-ink/50 border border-stone/20 dark:border-mist/20 rounded-lg py-2 pl-3 pr-10 text-charcoal dark:text-ice focus:ring-2 focus:ring-terracotta focus:border-terracotta outline-none transition">
+                        <option value="gemini-3.5-flash-lite">Basic</option>
+                        <option value="gemini-3.8-flash">Medium</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-stone dark:text-mist">
+                        <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                    </div>
+                </div>
+                <span id="modelLabel" class="text-xs font-mono text-stone/60 dark:text-mist/60 whitespace-nowrap"></span>
+            </div>
+        </div>
+      </div>
+
+      <div class="flex gap-4">
+        <div class="w-full lg:w-2/3">
+          <div class="card border border-black/5 dark:border-white/10 rounded-2xl p-4 shadow-lg bg-white/80 dark:bg-slate/60 backdrop-blur-lg">
+            <form id="essayForm" class="space-y-3">
+              
+              <div>
+                <label for="essayQuestion" class="block text-sm font-semibold mb-1 text-stone dark:text-mist">Essay Question</label>
+                <textarea id="essayQuestion" name="essayQuestion" rows="3" required class="field-sample w-full p-2 rounded-lg bg-cream/50 dark:bg-ink/50 border border-stone/20 dark:border-mist/20 focus:ring-2 focus:ring-terracotta focus:border-terracotta outline-none transition">Propose a mixed-methods research study to evaluate the efficacy of Trauma-Informed Care (TIC) training for statutory adult social workers in local authorities.</textarea>
+              </div>
+
+              <div>
+                <label for="detailedInstructions" class="block text-sm font-semibold mb-1 text-stone dark:text-mist">Detailed Instructions</label>
+                <textarea id="detailedInstructions" name="detailedInstructions" rows="4" required class="field-sample w-full p-2 rounded-lg bg-cream/50 dark:bg-ink/50 border border-stone/20 dark:border-mist/20 focus:ring-2 focus:ring-terracotta focus:border-terracotta outline-none transition">Provide a clear rationale and literature gap justifying the study in statutory adult social care under the Care Act 2014.
+State primary research questions and specific, testable hypotheses linking TIC training to burnout reduction.
+Detail a robust mixed-methods research design (e.g., sequential explanatory design combining quantitative surveys and qualitative focus groups).
+Address participant sampling (power calculation for quantitative sample size), data collection tools (e.g., ProQOL scale), ethical approval requirements (IRB/HRA), and data protection.
+Outline a 12-month project timeline, data analysis strategy (SPSS for quantitative, NVivo thematic analysis for qualitative), and practice dissemination plan.</textarea>
+              </div>
+              
+              <div>
+                <label for="markingSheet" class="block text-sm font-semibold mb-1 text-stone dark:text-mist">Essay Mark Sheet (Optional)</label>
+                <textarea id="markingSheet" name="markingSheet" rows="4" class="field-sample w-full p-2 rounded-lg bg-cream/50 dark:bg-ink/50 border border-stone/20 dark:border-mist/20 focus:ring-2 focus:ring-terracotta focus:border-terracotta outline-none transition">Context &amp; Ethical Dilemma (20 marks): Clear presentation of a practice/placement scenario identifying the explicit conflict between statutory duties, risk management, and service user autonomy.
+Theoretical &amp; Statutory Synthesis (30 marks): Synthesis of anti-oppressive practice models (e.g., Thompson's PCS), social work values, and relevant legislation to evaluate decision-making.
+Critical Power &amp; Relational Analysis (25 marks): Insightful analysis of institutional power, personal privilege, practitioner bias, and structural oppression within the intervention.
+Reflective Action Planning (15 marks): Constructive, realistic plan for future practice, highlighting how insights will be explored in formal supervision and multi-agency settings.
+Structure &amp; Professional Writing (10 marks): Excellent academic writing, clear organization, strict adherence to confidentiality guidelines, and accurate citations.</textarea>
+              </div>
+
+              <div class="flex items-end gap-4">
+                <div class="w-1/2">
+                  <label for="wordCount" class="block text-sm font-semibold mb-1 text-stone dark:text-mist">Target Word Count</label>
+                  <input type="number" id="wordCount" name="wordCount" value="2000" class="w-full p-3 rounded-lg bg-cream/50 dark:bg-ink/50 border border-stone/20 dark:border-mist/20 focus:ring-2 focus:ring-terracotta focus:border-terracotta outline-none transition [-webkit-appearance:none] [appearance:textfield] [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none">
+                </div>
+                <button type="submit" class="w-1/2 bg-sage hover:bg-terracotta text-white font-bold text-lg py-3 px-4 rounded-lg transition-colors duration-300 shadow-md">Generate Breakdown</button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+        <div class="w-full lg:w-1/3">
+            <div class="card border border-black/5 dark:border-white/10 rounded-2xl p-4 shadow-lg bg-white/80 dark:bg-slate/60 backdrop-blur-lg">
+                <label for="essayStyle" class="block text-sm font-semibold mb-2 text-stone dark:text-mist">Essay Style</label>
+                <select id="essayStyle" name="essayStyle" class="w-full appearance-none bg-cream/50 dark:bg-ink/50 border border-stone/20 dark:border-mist/20 rounded-lg py-2 pl-3 pr-10 text-charcoal dark:text-ice focus:ring-2 focus:ring-terracotta focus:border-terracotta outline-none transition"></select>
+                <div id="styleDescription" class="mt-2 text-sm text-stone dark:text-mist"></div>
+            </div>
+            <div class="card border border-black/5 dark:border-white/10 rounded-2xl p-4 shadow-lg bg-white/80 dark:bg-slate/60 backdrop-blur-lg mt-4">
+                <h3 class="block text-sm font-semibold mb-2 text-stone dark:text-mist">Typical Headings</h3>
+                <ul id="styleHeadings" class="mt-2 text-sm text-stone dark:text-mist list-disc list-inside"></ul>
+            </div>
+            <div class="card border border-black/5 dark:border-white/10 rounded-2xl p-4 shadow-lg bg-white/80 dark:bg-slate/60 backdrop-blur-lg mt-4">
+                <h3 class="text-sm font-semibold mb-1 text-stone dark:text-mist">⌨️ Shortcuts</h3>
+                <ul class="text-[11px] text-stone/60 dark:text-mist/60 space-y-1">
+                    <li><kbd class="px-1 py-0.5 bg-cream/50 dark:bg-ink/50 rounded text-[10px]">Ctrl+Enter</kbd> Generate</li>
+                    <li><kbd class="px-1 py-0.5 bg-cream/50 dark:bg-ink/50 rounded text-[10px]">Ctrl+D</kbd> Download (on results page)</li>
+                    <li><kbd class="px-1 py-0.5 bg-cream/50 dark:bg-ink/50 rounded text-[10px]">Esc</kbd> Collapse all (on results page)</li>
+                </ul>
+            </div>
+            <div id="historyPanel" class="card border border-black/5 dark:border-white/10 rounded-2xl p-4 shadow-lg bg-white/80 dark:bg-slate/60 backdrop-blur-lg mt-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-sm font-semibold text-stone dark:text-mist cursor-pointer select-none" id="historyToggle">📋 History <span id="historyCount" class="font-normal text-xs ml-1"></span></h3>
+                    <button id="clearHistory" class="text-xs text-stone/60 dark:text-mist/60 hover:text-terracotta transition-colors" title="Clear all history" style="display:none">Clear</button>
+                </div>
+                <div id="historyList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                <p id="historyEmpty" class="text-xs text-stone/50 dark:text-mist/50 italic mt-1">No previous breakdowns saved.</p>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="essay-styles.js"></script>
+  <script>
+    const essayStyleSelect = document.getElementById('essayStyle');
+    const styleDescriptionDiv = document.getElementById('styleDescription');
+    const styleHeadingsUl = document.getElementById('styleHeadings');
+
+    essayStyles.forEach(style => {
+        const option = document.createElement('option');
+        option.value = style.name;
+        option.textContent = style.name;
+        essayStyleSelect.appendChild(option);
+    });
+
+    function updateStyleInformation() {
+        const selectedStyle = essayStyles.find(style => style.name === essayStyleSelect.value);
+        if (selectedStyle) {
+            styleDescriptionDiv.textContent = selectedStyle.description;
+            
+            styleHeadingsUl.innerHTML = '';
+            selectedStyle.headings.forEach(heading => {
+                const li = document.createElement('li');
+                li.textContent = heading;
+                styleHeadingsUl.appendChild(li);
+            });
+        }
+    }
+
+    essayStyleSelect.addEventListener('change', updateStyleInformation);
+
+    // Set initial description and headings
+    if (essayStyles.length > 0) {
+        updateStyleInformation();
+    }
+
+    // ---- Model label: show the real model id for the selected tier ----
+    const modelSelect = document.getElementById('model');
+    const modelLabel = document.getElementById('modelLabel');
+    function updateModelLabel() {
+        modelLabel.textContent = modelSelect.value;
+    }
+    modelSelect.addEventListener('change', updateModelLabel);
+    updateModelLabel();
+
+    // ---- Keyboard shortcuts ----
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            const form = document.getElementById('essayForm');
+            if (form) form.requestSubmit();
+        }
+    });
+
+
+    // ---- Sample text in the form fields ----
+    // The three text fields are pre-filled with a worked example. That text is guidance, not input:
+    // it is muted and unselectable (.field-sample), clears as soon as the user engages with the
+    // field, and is dropped on submit even if the field was never focused.
+    const sampleFields = Array.from(document.querySelectorAll('.field-sample'));
+    sampleFields.forEach(el => {
+        el.dataset.sample = el.value;
+        el.addEventListener('focus', () => {
+            el.value = '';
+            el.classList.remove('field-sample');
+        });
+        el.addEventListener('blur', () => {
+            if (!el.value.trim()) {           // left empty -> show the guidance again
+                el.value = el.dataset.sample;
+                el.classList.add('field-sample');
+            }
+        });
+    });
+    // Capture phase: runs before the form's own submit handler, so guidance text is never sent.
+    document.addEventListener('submit', (e) => {
+        if (e.target && e.target.id === 'essayForm') {
+            sampleFields.forEach(el => {
+                if (el.classList.contains('field-sample')) el.value = '';
+            });
+        }
+    }, true);
+
+    document.getElementById('essayForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const essayQuestion = document.getElementById('essayQuestion').value;
+        const detailedInstructions = document.getElementById('detailedInstructions').value;
+        const markingSheet = document.getElementById('markingSheet').value;
+        const wordCount = document.getElementById('wordCount').value;
+        const model = document.getElementById('model').value;
+        const essayStyle = document.getElementById('essayStyle').value;
+        const selectedStyle = essayStyles.find(style => style.name === essayStyle);
+
+        const breakdownData = {
+            essayQuestion,
+            detailedInstructions,
+            markingSheet,
+            wordCount,
+            model,
+            essayStyle,
+            headings: selectedStyle ? JSON.stringify(selectedStyle.headings) : '',
+            styleDescription: selectedStyle ? selectedStyle.description : ''
+        };
+        sessionStorage.setItem('breakdownData', JSON.stringify(breakdownData));
+
+        window.open('breakdown.html', '_blank');
+    });
+
+    // ---- History sidebar ----
+    function loadHistory() {
+        const list = document.getElementById('historyList');
+        const empty = document.getElementById('historyEmpty');
+        const clearBtn = document.getElementById('clearHistory');
+        const count = document.getElementById('historyCount');
+        let history = [];
+        try {
+            const stored = localStorage.getItem('breakdown_history');
+            if (stored) history = JSON.parse(stored);
+            if (!Array.isArray(history)) history = [];
+        } catch (e) { history = []; }
+
+        list.innerHTML = '';
+        if (history.length === 0) {
+            empty.style.display = '';
+            clearBtn.style.display = 'none';
+            count.textContent = '';
+            return;
+        }
+
+        empty.style.display = 'none';
+        clearBtn.style.display = '';
+        count.textContent = `(${history.length})`;
+
+        history.forEach((entry, idx) => {
+            const preview = (entry.question || '').substring(0, 60) + ((entry.question || '').length > 60 ? '…' : '');
+            const d = new Date(entry.date);
+            const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+            const item = document.createElement('div');
+            item.className = 'flex items-start gap-2 p-2 rounded-lg cursor-pointer hover:bg-sage/10 dark:hover:bg-sage/5 transition-colors group';
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+
+            const info = document.createElement('div');
+            info.className = 'flex-1 min-w-0';
+
+            const questionEl = document.createElement('p');
+            questionEl.className = 'text-xs text-charcoal dark:text-ice truncate font-medium';
+            questionEl.textContent = preview;
+
+            const metaEl = document.createElement('p');
+            metaEl.className = 'text-[10px] text-stone/60 dark:text-mist/60 mt-0.5';
+            metaEl.textContent = `${entry.style || 'Essay'} · ${dateStr}`;
+
+            info.appendChild(questionEl);
+            info.appendChild(metaEl);
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'text-stone/40 dark:text-mist/40 hover:text-red-500 transition-colors text-xs p-1 opacity-0 group-hover:opacity-100 shrink-0';
+            delBtn.title = 'Delete';
+            delBtn.innerHTML = '✕';
+            delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                history.splice(idx, 1);
+                try { localStorage.setItem('breakdown_history', JSON.stringify(history)); } catch(e) {}
+                loadHistory();
+            });
+
+            item.appendChild(info);
+            item.appendChild(delBtn);
+
+            item.addEventListener('click', () => {
+                sessionStorage.setItem('breakdownData', JSON.stringify({
+                    essayQuestion: entry.question,
+                    detailedInstructions: '',
+                    markingSheet: '',
+                    wordCount: '2000',
+                    model: 'gemini-3.5-flash-lite',
+                    essayStyle: entry.style,
+                    headings: JSON.stringify(entry.headings || []),
+                    styleDescription: entry.styleDescription || '',
+                    historyId: entry.id
+                }));
+                window.open('breakdown.html', '_blank');
+            });
+
+            list.appendChild(item);
+        });
+    }
+
+    document.getElementById('clearHistory').addEventListener('click', () => {
+        if (confirm('Clear all saved breakdown history?')) {
+            localStorage.removeItem('breakdown_history');
+            loadHistory();
+        }
+    });
+
+    loadHistory();
+  </script>
+</body>
+</html>

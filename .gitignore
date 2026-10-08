@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Secrets — never commit. The app asks each visitor for their own key and keeps
+# it in that browser's localStorage; no key belongs in this repository.
+# ---------------------------------------------------------------------------
+.env
+*.env
+SupportFiles/.env
+
+# ---------------------------------------------------------------------------
+# Not required to run the app (kept locally only)
+# ---------------------------------------------------------------------------
+backup/
+tasks/
+.reasonix/
+SupportFiles/
+matrix.html
+matrix.css
+matrix.js
+OLDprompts.js
+improvementsplan.md
+reasonix.toml
+AGENT.md
+GEMINI.md
+ESSAY-STYLES-AND-PROMPTS.md
+
+# ---------------------------------------------------------------------------
+# OS noise
+# ---------------------------------------------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
